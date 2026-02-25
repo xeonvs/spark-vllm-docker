@@ -68,6 +68,32 @@ MINIMAX_ARGS=(
 )
 
 # ==============================================================================
+# qwen3-coder-next-nvfp4-gdn
+# Note: --mamba-cache-mode is intentionally omitted (not exposed by current vLLM CLI)
+# ==============================================================================
+QWEN3_GDN_MODEL="GadflyII/Qwen3-Coder-Next-NVFP4"
+QWEN3_GDN_CONTAINER="vllm-node-mxfp4"
+QWEN3_GDN_MODS=(
+    "mods/fix-qwen3-coder-next"
+    "mods/gdn-prefix-caching"
+)
+QWEN3_GDN_ARGS=(
+    "--tool-call-parser qwen3_coder"
+    "--enable-auto-tool-choice"
+    "--gpu-memory-utilization 0.85"
+    "--host 0.0.0.0"
+    "--port 8000"
+    "--load-format fastsafetensors"
+    "--mxfp4-backend CUTLASS"
+    "--mxfp4-layers moe,qkv,o,lm_head"
+    "--attention-backend FLASHINFER"
+    "--enable-prefix-caching"
+    "--kv-cache-dtype fp8_e4m3"
+    "--calculate-kv-scales"
+    "--max-model-len 204800"
+)
+
+# ==============================================================================
 # Cluster Mode Expected Arguments
 # These are arguments that should appear ONLY in cluster mode
 # Note: Tests use 2 nodes, so tensor_parallel = 2 (1 GPU per node)

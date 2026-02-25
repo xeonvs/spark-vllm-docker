@@ -1,12 +1,14 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 echo "Patching Qwen3-Coder-Next crashing on start"
-patch -p1 -d /usr/local/lib/python3.12/dist-packages < fix_crash.diff || echo "Patch is not applicable, skipping"
+patch -p1 --batch --forward -d /usr/local/lib/python3.12/dist-packages < fix_crash.diff \
+  || echo "Patch is not applicable on this vLLM revision, skipping"
 
 # Restoring this one because the PR has been reverted in main
 echo "Reverting PR #34279 that causes slowness"
-patch -p1 -R -d /usr/local/lib/python3.12/dist-packages < fix_slowness.diff || echo "Can't revert PR #34279, skipping as it was reverted in recent commits"
+patch -p1 -R --batch --forward -d /usr/local/lib/python3.12/dist-packages < fix_slowness.diff \
+  || echo "Can't revert PR #34279, skipping as it was already reverted or changed upstream"
 
 # if grep -q "Cast to int64 to prevent overflow in stride" /usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/fused_moe/fused_moe.py; then
 #     echo "PR #34507 already applied, skipping."

@@ -728,6 +728,90 @@ test_launch_cmd_no_solo_in_cluster() {
     fi
 }
 
+# Test: qwen3-coder-next-nvfp4-gdn contract (args + mods + no legacy flag)
+test_qwen3_gdn_recipe_contract() {
+    log_test "Recipe contract: qwen3-coder-next-nvfp4-gdn"
+
+    if [[ ! -f "$PROJECT_DIR/recipes/qwen3-coder-next-nvfp4-gdn.yaml" ]]; then
+        log_skip "qwen3-coder-next-nvfp4-gdn.yaml not found"
+        return
+    fi
+
+    output=$("$PROJECT_DIR/run-recipe.py" qwen3-coder-next-nvfp4-gdn --dry-run --solo 2>&1)
+    vllm_cmd=$(extract_vllm_command "$output")
+    launch_cmd=$(extract_launch_cmd "$output")
+
+    local all_passed=true
+    local missing_items=()
+
+    if ! echo "$vllm_cmd" | grep -q "$QWEN3_GDN_MODEL"; then
+        missing_items+=("model: $QWEN3_GDN_MODEL")
+        all_passed=false
+    fi
+
+    if ! echo "$launch_cmd" | grep -q "\-t $QWEN3_GDN_CONTAINER"; then
+        missing_items+=("container: $QWEN3_GDN_CONTAINER")
+        all_passed=false
+    fi
+
+    for mod in "${QWEN3_GDN_MODS[@]}"; do
+        if ! echo "$launch_cmd" | grep -qF -- "$mod"; then
+            missing_items+=("mod: $mod")
+            all_passed=false
+        fi
+    done
+
+    for arg in "${QWEN3_GDN_ARGS[@]}"; do
+        local flag=$(echo "$arg" | awk '{print $1}')
+        local value=$(echo "$arg" | cut -d' ' -f2-)
+        if ! echo "$vllm_cmd" | grep -qF -- "$flag"; then
+            missing_items+=("$arg")
+            all_passed=false
+        elif [[ -n "$value" ]] && [[ "$value" != "$flag" ]]; then
+            if ! echo "$vllm_cmd" | grep -qF -- "$value"; then
+                missing_items+=("$arg (flag present, value mismatch)")
+                all_passed=false
+            fi
+        fi
+    done
+
+    if echo "$vllm_cmd" | grep -q -- "--mamba-cache-mode"; then
+        missing_items+=("legacy flag must be absent: --mamba-cache-mode")
+        all_passed=false
+    fi
+
+    if [[ "$all_passed" == "true" ]]; then
+        log_pass "Recipe contract: qwen3-coder-next-nvfp4-gdn"
+    else
+        log_fail "Recipe contract: qwen3-coder-next-nvfp4-gdn"
+        for item in "${missing_items[@]}"; do
+            log_verbose "  Mismatch: $item"
+        done
+        log_verbose "  vLLM command: $vllm_cmd"
+        log_verbose "  launch cmd: $launch_cmd"
+    fi
+}
+
+# Test: qwen3-coder-next-fp8-local should not use legacy mamba-cache-mode flag
+test_qwen3_fp8_local_no_legacy_mamba_flag() {
+    log_test "Recipe contract: qwen3-coder-next-fp8-local omits --mamba-cache-mode"
+
+    if [[ ! -f "$PROJECT_DIR/recipes/qwen3-coder-next-fp8-local.yaml" ]]; then
+        log_skip "qwen3-coder-next-fp8-local.yaml not found"
+        return
+    fi
+
+    output=$("$PROJECT_DIR/run-recipe.py" qwen3-coder-next-fp8-local --dry-run --solo 2>&1)
+    vllm_cmd=$(extract_vllm_command "$output")
+
+    if echo "$vllm_cmd" | grep -q -- "--mamba-cache-mode"; then
+        log_fail "Recipe contract: qwen3-coder-next-fp8-local contains legacy --mamba-cache-mode flag"
+        log_verbose "  vLLM command: $vllm_cmd"
+    else
+        log_pass "Recipe contract: qwen3-coder-next-fp8-local omits --mamba-cache-mode"
+    fi
+}
+
 # ==============================================================================
 # README Documentation Verification Tests
 # ==============================================================================
@@ -1203,6 +1287,8 @@ main() {
     test_launch_cmd_launch_script
     test_launch_cmd_container_override
     test_launch_cmd_no_solo_in_cluster
+    test_qwen3_gdn_recipe_contract
+    test_qwen3_fp8_local_no_legacy_mamba_flag
     echo ""
     
     # README documentation verification tests
